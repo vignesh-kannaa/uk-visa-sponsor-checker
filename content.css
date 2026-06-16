@@ -1,0 +1,31 @@
+.uvsc-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.uvsc-badge--sponsor {
+  background-color: #d4f7dc;
+  color: #0a6b2d;
+  border: 1px solid #8fdba6;
+}
+
+.uvsc-badge--not-sponsor {
+  background-color: #fdd9d9;
+  color: #a31515;
+  border: 1px solid #f1a6a6;
+}
+
+.uvsc-badge--unknown {
+  background-color: #eef0f2;
+  color: #5e6266;
+  border: 1px solid #d3d6d9;
+}
