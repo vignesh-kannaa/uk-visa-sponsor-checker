@@ -3,14 +3,12 @@
  * Runs on linkedin.com. Finds job cards / job detail panes, reads the
  * company name, looks it up against the cached sponsor register, and
  * injects a green or red badge next to the company name.
- *
- * Uses structural/attribute selectors instead of class names, because
- * LinkedIn now uses hashed obfuscated class names that change regularly.
  */
 
 (function () {
   const BADGE_CLASS = "uvsc-badge";
-  const PROCESSED_ATTR = "data-uvsc-processed";
+  const WRAP_CLASS = "uvsc-company-wrap";
+  const DONE_ATTR = "data-uvsc-done";
 
   let sponsorData = null;
   let dataLoaded = false;
@@ -18,19 +16,16 @@
   // ── Sponsor data loading ──────────────────────────────────────────
 
   function loadSponsorData() {
-    chrome.storage.local.get(
-      ["sponsorExactNames", "sponsorBuckets"],
-      (data) => {
-        if (data && data.sponsorExactNames && data.sponsorExactNames.length) {
-          sponsorData = {
-            exactSet: new Set(data.sponsorExactNames),
-            buckets: data.sponsorBuckets || {}
-          };
-          dataLoaded = true;
-          rescanPending();
-        }
+    chrome.storage.local.get(["sponsorExactNames", "sponsorBuckets"], (data) => {
+      if (data && data.sponsorExactNames && data.sponsorExactNames.length) {
+        sponsorData = {
+          exactSet: new Set(data.sponsorExactNames),
+          buckets: data.sponsorBuckets || {}
+        };
+        dataLoaded = true;
+        rescanPending();
       }
-    );
+    });
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -54,7 +49,7 @@
       for (const c of candidates) {
         if (c === norm) return true;
         if (c.startsWith(norm + " ") || norm.startsWith(c + " ")) return true;
-        if (norm.length >= 4 && (c.includes(norm) || norm.includes(c))) return true;
+        if (norm.length >= 6 && (c.includes(norm) || norm.includes(c))) return true;
       }
     }
     return false;
@@ -72,7 +67,7 @@
     } else if (status === false) {
       span.classList.add("uvsc-badge--not-sponsor");
       span.textContent = "✗ Not on sponsor register";
-      span.title = "Not found on the Home Office register of licensed sponsors. Verify directly with the employer.";
+      span.title = "Not found on the Home Office register. Verify directly with the employer.";
     } else {
       span.classList.add("uvsc-badge--unknown");
       span.textContent = "… loading";
@@ -81,180 +76,161 @@
     return span;
   }
 
-  function insertBadge(anchorEl, status, cardEl) {
-    // Remove any existing badge first
-    const old = cardEl.querySelector(`:scope .${BADGE_CLASS}`);
-    if (old) old.remove();
-    const badge = makeBadge(status);
-    anchorEl.insertAdjacentElement("afterend", badge);
-    return badge;
+  function insertBadge(anchorEl, status) {
+    const parent = anchorEl.parentElement;
+    if (!parent) return;
+
+    // If already wrapped by us, just update the badge
+    if (parent.classList.contains(WRAP_CLASS)) {
+      const old = parent.querySelector(`.${BADGE_CLASS}`);
+      if (old) old.replaceWith(makeBadge(status));
+      else parent.appendChild(makeBadge(status));
+      return;
+    }
+
+    const tag = anchorEl.tagName;
+    if (tag === "P" || tag === "DIV") {
+      // Wrap block element in a flex container so badge sits inline
+      const wrap = document.createElement("div");
+      wrap.className = WRAP_CLASS;
+      parent.insertBefore(wrap, anchorEl);
+      wrap.appendChild(anchorEl);
+      wrap.appendChild(makeBadge(status));
+    } else {
+      // Inline element (<a>, <span>): insert badge immediately after
+      anchorEl.insertAdjacentElement("afterend", makeBadge(status));
+    }
   }
 
-  // ── Finding the company name ──────────────────────────────────────
+  // ── Finding the best company link in the detail pane ─────────────
 
   /**
-   * LinkedIn job LIST CARD structure (2025/2026):
+   * LinkedIn renders the company name in the detail pane as:
+   *   <a href="/company/...">   ← OUTER wrapper (contains logo + inner <a>)
+   *     <div aria-label="Company, NAME">
+   *       <figure>...</figure>
+   *       <p>
+   *         <a href="/company/...">NAME</a>   ← INNER text-only link
+   *       </p>
+   *     </div>
+   *   </a>
    *
-   *  div[componentkey="job-card-component-ref-JOBID"]   ← card root
-   *    figure  (logo)
-   *    div
-   *      div
-   *        div
-   *          p  ← job title  (contains <a> or <span> with long text)
-   *          div
-   *            p  ← COMPANY NAME  ← this is what we want
-   *          p  ← location
-   *
-   * The company name <p> sits between the title and the location.
-   * It has no children (just a text node), while title <p> contains
-   * nested spans/anchors and location has a different pattern.
+   * We must pick the INNER <a> (text only, no child elements other than
+   * text nodes), not the outer wrapper.
    */
+  function isTextOnlyCompanyLink(a) {
+    const href = a.getAttribute("href") || "";
+    if (!href.includes("/company/")) return false;
+
+    // Must not contain block-level children (figure, div, img, svg)
+    if (a.querySelector("figure, div, img, svg")) return false;
+
+    // Text content must be short and non-empty
+    const text = (a.textContent || "").trim();
+    if (!text || text.length < 2 || text.length > 80) return false;
+
+    // Must not be inside a job list card (those handled separately)
+    if (a.closest("[componentkey^='job-card-component-ref']")) return false;
+
+    return true;
+  }
+
+  // ── Finding company name in job LIST CARDS ────────────────────────
+
   function extractCompanyFromCard(card) {
-    // All <p> elements that are direct short-text paragraphs (no links inside)
     const paragraphs = Array.from(card.querySelectorAll("p"));
     for (const p of paragraphs) {
-      // Skip if it contains anchor or SVG children — those are title/verified
-      if (p.querySelector("a, svg, button")) continue;
-      // Skip very long text (job title descriptions)
-      const text = (p.textContent || "").trim();
-      if (!text || text.length > 80) continue;
-      // Skip if the text looks like a date, location clue, or status
-      if (/ago|viewed|promoted|easy apply|actively|applicant/i.test(text)) continue;
-      // Skip if it looks like a location (contains comma or common location words)
-      if (/,\s*[A-Z]/.test(text) || /\b(remote|hybrid|on.site|london|manchester|birmingham|glasgow|edinburgh|bristol|leeds|sheffield|liverpool)\b/i.test(text)) continue;
-      // The company name is typically 1-60 chars, no special chars except & . ' -
-      if (/[^\w\s&.',()\-]/.test(text)) continue;
-      return { el: p, name: text };
+      if (p.querySelector("svg, button, img")) continue;
+      // Allow <p> that contains only an <a> (inner company link pattern)
+      const anchors = p.querySelectorAll("a");
+      let text = "";
+      if (anchors.length === 1 && !p.querySelector("svg")) {
+        text = (anchors[0].textContent || "").trim();
+      } else if (anchors.length === 0) {
+        text = (p.textContent || "").trim();
+      }
+      if (!text || text.length < 2 || text.length > 80) continue;
+      if (/\d+ (week|day|month|hour|minute)s? ago/i.test(text)) continue;
+      if (/\b(viewed|promoted|easy apply|actively|applicants|reposted|connections|alumni|verified)\b/i.test(text)) continue;
+      if (/\b(remote|hybrid|on-site|on site)\b/i.test(text) && text.length < 30) continue;
+      if (/^[A-Z][^,]{1,40},\s*[A-Z]/.test(text)) continue;
+      if (/\(remote\)|\(hybrid\)|\(on.site\)/i.test(text)) continue;
+      // Return the inner <a> if present (so badge goes inline with text)
+      const el = anchors.length === 1 ? anchors[0] : p;
+      return { el, name: text };
     }
-    return null;
-  }
-
-  /**
-   * LinkedIn job DETAIL PANE structure (2025/2026):
-   *
-   * The detail pane is identified by containing a job title heading
-   * and a company-name element. We look for the pattern:
-   *   - A heading (h1/h2) or large text = job title
-   *   - Next sibling or nearby <a> or <span> = company name (links to company page)
-   *
-   * Company name in the detail pane is usually inside an <a> that links
-   * to /company/... OR a <span>/<div> right after the title heading.
-   */
-  function extractCompanyFromDetail(pane) {
-    // Try: <a> linking to a LinkedIn company page
-    const companyLink = pane.querySelector("a[href*='/company/']");
-    if (companyLink) {
-      const text = (companyLink.textContent || "").trim();
-      if (text && text.length < 80) return { el: companyLink, name: text };
-    }
-    return null;
-  }
-
-  // ── Card identification ───────────────────────────────────────────
-
-  /**
-   * Returns { el, name, type } or null.
-   * type: "card" | "detail"
-   */
-  function identifyAndExtract(el) {
-    // Job list card: has componentkey starting with "job-card-component-ref"
-    if (el.matches && el.matches("[componentkey^='job-card-component-ref']")) {
-      const found = extractCompanyFromCard(el);
-      if (found) return { ...found, type: "card", root: el };
-    }
-
-    // Job detail pane: contains a company link + is large enough to be the detail view
-    if (el.matches && el.matches("[class*='scaffold-layout__detail'], [data-job-id], .jobs-search__job-details, main")) {
-      const found = extractCompanyFromDetail(el);
-      if (found) return { ...found, type: "detail", root: el };
-    }
-
     return null;
   }
 
   // ── Processing ────────────────────────────────────────────────────
 
-  const pendingEls = new Set();
+  const pendingCards = new Set();
+  const pendingLinks = new Set();
 
-  function processCard(cardEl) {
-    // Already finalized?
-    if (cardEl.getAttribute(PROCESSED_ATTR) === "true") return;
-
-    let found = null;
-
-    if (cardEl.matches("[componentkey^='job-card-component-ref']")) {
-      found = extractCompanyFromCard(cardEl);
-    } else {
-      found = extractCompanyFromDetail(cardEl);
-    }
-
+  function processCard(card) {
+    if (card.getAttribute(DONE_ATTR)) return;
+    const found = extractCompanyFromCard(card);
     if (!found) return;
-
+    card.setAttribute(DONE_ATTR, "true");
     const status = checkSponsor(found.name);
-    insertBadge(found.el, status, cardEl);
+    insertBadge(found.el, status);
+    if (status === null) pendingCards.add(card);
+  }
 
-    if (status === null) {
-      pendingEls.add(cardEl);
-    } else {
-      cardEl.setAttribute(PROCESSED_ATTR, "true");
-      pendingEls.delete(cardEl);
+  function processDetailLinks() {
+    // Only select text-only company links that haven't been processed
+    const allLinks = document.querySelectorAll(`a[href*='/company/']:not([${DONE_ATTR}])`);
+    for (const link of allLinks) {
+      if (!isTextOnlyCompanyLink(link)) {
+        // Mark outer wrapper links as done so we skip them too
+        link.setAttribute(DONE_ATTR, "skip");
+        continue;
+      }
+      link.setAttribute(DONE_ATTR, "true");
+      const text = (link.textContent || "").trim();
+      const status = checkSponsor(text);
+      insertBadge(link, status);
+      if (status === null) pendingLinks.add(link);
     }
   }
 
   function rescanPending() {
-    for (const el of Array.from(pendingEls)) {
-      processCard(el);
+    for (const card of Array.from(pendingCards)) {
+      const found = extractCompanyFromCard(card);
+      if (!found) continue;
+      const status = checkSponsor(found.name);
+      if (status === null) continue;
+      const old = card.querySelector(`.${BADGE_CLASS}`);
+      if (old) old.replaceWith(makeBadge(status));
+      pendingCards.delete(card);
+    }
+    for (const link of Array.from(pendingLinks)) {
+      const text = (link.textContent || "").trim();
+      const status = checkSponsor(text);
+      if (status === null) continue;
+      const old = link.parentElement && link.parentElement.querySelector(`.${BADGE_CLASS}`);
+      if (old) old.replaceWith(makeBadge(status));
+      pendingLinks.delete(link);
     }
   }
 
-  function scanRoot(root) {
-    // Scan list cards
-    const cards = root.querySelectorAll
-      ? root.querySelectorAll("[componentkey^='job-card-component-ref']")
-      : [];
-    cards.forEach(processCard);
+  // ── Full page scan ────────────────────────────────────────────────
 
-    // If root itself is a card
-    if (root.matches && root.matches("[componentkey^='job-card-component-ref']")) {
-      processCard(root);
-    }
-
-    // Scan detail pane — look for company links anywhere on page
-    const companyLinks = root.querySelectorAll
-      ? root.querySelectorAll("a[href*='/company/']")
-      : [];
-    companyLinks.forEach((link) => {
-      const text = (link.textContent || "").trim();
-      if (!text || text.length > 80) return;
-      // Find the nearest scrollable/structural ancestor as the "card"
-      const pane = link.closest(
-        "[class*='scaffold-layout__detail'], [data-job-id], .jobs-search__job-details, [class*='job-details'], [class*='jobs-unified-top-card']"
-      ) || link.closest("div[class]");
-      if (!pane) return;
-      if (pane.getAttribute(PROCESSED_ATTR) === "true") return;
-      const existing = pane.querySelector(`.${BADGE_CLASS}`);
-      if (existing) return; // already badged this pane
-      const status = checkSponsor(text);
-      insertBadge(link, status, pane);
-      if (status !== null) pane.setAttribute(PROCESSED_ATTR, "true");
-      else pendingEls.add(pane);
-    });
+  function scanPage() {
+    document.querySelectorAll("[componentkey^='job-card-component-ref']")
+      .forEach(processCard);
+    processDetailLinks();
   }
 
   // ── DOM observation ───────────────────────────────────────────────
 
   let scanTimeout = null;
-  function scheduleScan(root) {
+  function scheduleScan() {
     if (scanTimeout) clearTimeout(scanTimeout);
-    scanTimeout = setTimeout(() => {
-      scanTimeout = null;
-      scanRoot(root || document.body);
-    }, 200);
+    scanTimeout = setTimeout(() => { scanTimeout = null; scanPage(); }, 250);
   }
 
-  const observer = new MutationObserver(() => scheduleScan(document.body));
+  const observer = new MutationObserver(scheduleScan);
   observer.observe(document.body, { childList: true, subtree: true });
-
-  // Initial scan
-  scheduleScan(document.body);
+  scheduleScan();
 })();

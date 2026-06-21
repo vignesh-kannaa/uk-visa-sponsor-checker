@@ -1,54 +1,78 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>UK Visa Sponsor Checker</title>
-  <link rel="stylesheet" href="popup.css" />
-</head>
-<body>
-  <div class="container">
-    <h1>UK Visa Sponsor Checker</h1>
-    <p class="subtitle">For LinkedIn job listings</p>
+  <head>
+    <meta charset="UTF-8" />
+    <title>UK Visa Sponsor Checker</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>UK Visa Sponsor Checker</h1>
+      <p class="subtitle">For LinkedIn job listings</p>
 
-    <div class="status-row">
-      <span class="label">Register status</span>
-      <span id="status" class="value">Loading…</span>
-    </div>
-
-    <div class="status-row">
-      <span class="label">Sponsors loaded</span>
-      <span id="count" class="value">–</span>
-    </div>
-
-    <div class="status-row">
-      <span class="label">Last updated</span>
-      <span id="updated" class="value">–</span>
-    </div>
-
-    <button id="refreshBtn">Refresh register now</button>
-
-    <div id="errorBox" class="error" hidden></div>
-
-    <div class="legend">
-      <div class="legend-item">
-        <span class="dot dot-green"></span>
-        <span>UK Visa Sponsor — found on the Home Office register</span>
+      <div class="status-row">
+        <span class="label">Register status</span>
+        <span id="status" class="value">Loading…</span>
       </div>
-      <div class="legend-item">
-        <span class="dot dot-red"></span>
-        <span>Not on sponsor register — no match found</span>
-      </div>
-    </div>
 
-    <p class="footer">
-      Data source:
-      <a href="https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers" target="_blank" rel="noopener">
-        gov.uk register of licensed sponsors
-      </a>.
-      Matching is name-based and may not be exact — always verify directly
-      with the employer or the official register.
-    </p>
-  </div>
-  <script src="popup.js"></script>
-</body>
+      <div class="status-row">
+        <span class="label">Sponsors loaded</span>
+        <span id="count" class="value">–</span>
+      </div>
+
+      <div class="status-row">
+        <span class="label">Last updated</span>
+        <span id="updated" class="value">–</span>
+      </div>
+
+      <button id="refreshBtn">Refresh register now</button>
+
+      <div id="errorBox" class="error" hidden></div>
+
+      <div class="legend">
+        <div class="legend-item">
+          <span class="dot dot-green"></span>
+          <span>UK Visa Sponsor — found on the Home Office register</span>
+        </div>
+        <div class="legend-item">
+          <span class="dot dot-red"></span>
+          <span>Not on sponsor register — no match found</span>
+        </div>
+      </div>
+
+      <p class="footer">
+        Data source:
+        <a
+          href="https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers"
+          target="_blank"
+          rel="noopener"
+        >
+          gov.uk register of licensed sponsors </a
+        >. Matching is name-based and may not be exact — always verify directly
+        with the employer or the official register.
+      </p>
+      <p class="footer">
+        Report issues here:
+        <a
+          href="https://github.com/vignesh-kannaa/uk-visa-sponsor-checker/issues"
+          target="_blank"
+          rel="noopener"
+        >
+          GitHub Issues
+        </a>
+      </p>
+
+      <p class="footer">
+        Support my work:
+        <a
+          href="https://buymeacoffee.com/vigneshkannaa"
+          target="_blank"
+          rel="noopener"
+        >
+          <button id="support">Buy Me a Coffee</button>
+        </a>
+      </p>
+    </div>
+    <script src="popup.js"></script>
+  </body>
 </html>

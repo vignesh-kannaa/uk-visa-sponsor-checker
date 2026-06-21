@@ -23,6 +23,18 @@ badge:
 3. **popup.html/js** shows when the register was last updated, how many
    sponsor organisations are loaded, and lets you trigger a manual refresh.
 
+## Installation (load as unpacked extension)
+
+1. Download/clone this folder (`uk-visa-sponsor-checker/`) to your computer.
+2. Open Chrome and go to `chrome://extensions`.
+3. Enable **Developer mode** (top-right toggle).
+4. Click **Load unpacked** and select the `uk-visa-sponsor-checker` folder.
+5. Click the extension icon and press **"Refresh register now"** the first
+   time to download the sponsor list (this is an ~10 MB CSV, so it may take a
+   few seconds).
+6. Go to `linkedin.com/jobs/` and search/browse jobs — badges should appear
+   next to company names within a second or two.
+
 ## Important caveats — please read
 
 - **Name matching is approximate.** LinkedIn shows a company's "display
