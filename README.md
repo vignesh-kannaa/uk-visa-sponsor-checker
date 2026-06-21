@@ -4,7 +4,7 @@ A Chrome extension that scans LinkedIn job listings and tags each one with a
 badge:
 
 - 🟩 **"✓ UK Visa Sponsor"** — the employer's name matches an organisation on
-  the official Home Office *Register of licensed sponsors: workers*.
+  the official Home Office _Register of licensed sponsors: workers_.
 - 🟥 **"✗ Not on sponsor register"** — no matching organisation was found.
 
 ## How it works
@@ -23,17 +23,13 @@ badge:
 3. **popup.html/js** shows when the register was last updated, how many
    sponsor organisations are loaded, and lets you trigger a manual refresh.
 
-## Installation (load as unpacked extension)
+## Installation (from Chrome Web Store)
 
-1. Download/clone this folder (`uk-visa-sponsor-checker/`) to your computer.
-2. Open Chrome and go to `chrome://extensions`.
-3. Enable **Developer mode** (top-right toggle).
-4. Click **Load unpacked** and select the `uk-visa-sponsor-checker` folder.
-5. Click the extension icon and press **"Refresh register now"** the first
-   time to download the sponsor list (this is an ~10 MB CSV, so it may take a
-   few seconds).
-6. Go to `linkedin.com/jobs/` and search/browse jobs — badges should appear
-   next to company names within a second or two.
+1. Go to the [Chrome Web Store](https://chromewebstore.google.com/category/extensions).
+2. Search for **UK Visa Sponsor Checker for LinkedIn** or directly visit the [extension page](https://chromewebstore.google.com/detail/hcjgmeeolofcmlbolglhblfnnnkhcdne).
+3. Click **Add to Chrome** and confirm the installation.
+4. Once added, go to [LinkedIn Jobs](https://www.linkedin.com/jobs/).
+5. Refresh the page — badges should appear next to company names within a second or two.
 
 ## Important caveats — please read
 
@@ -50,7 +46,7 @@ badge:
 - **This is a convenience tool, not legal/immigration advice.** A red badge
   does **not** definitively mean a company cannot sponsor you, and a green
   badge does **not** guarantee a role comes with sponsorship (the employer
-  must still be willing to sponsor *that specific role* and meet salary/skill
+  must still be willing to sponsor _that specific role_ and meet salary/skill
   thresholds). Always verify directly with the employer and, if it matters
   for a decision, check the live register yourself:
   https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers
@@ -59,18 +55,6 @@ badge:
   but LinkedIn periodically redesigns its pages, which may stop badges from
   appearing. If that happens, the selectors in `content.js` (`CARD_CONFIGS`)
   will need updating to match LinkedIn's current DOM.
-
-## File overview
-
-| File | Purpose |
-|---|---|
-| `manifest.json` | Chrome Manifest V3 configuration |
-| `background.js` | Downloads/parses the sponsor register, caches it, daily refresh via `chrome.alarms` |
-| `common.js` | Shared name-normalization logic used by both background and content scripts |
-| `content.js` | Scans LinkedIn pages and injects badges |
-| `content.css` | Badge styling |
-| `popup.html/js/css` | Toolbar popup showing register status + manual refresh |
-| `icons/` | Extension icons |
 
 ## Permissions used
 

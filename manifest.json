@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "UK Visa Sponsor Checker for LinkedIn",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Highlights LinkedIn jobs in green (UK visa sponsor) or red (not on the register), using official UK Home Office register",
   "permissions": ["storage", "alarms", "unlimitedStorage"],
   "host_permissions": [
