@@ -5,7 +5,7 @@ badge:
 
 - 🟩 **"✓ UK Visa Sponsor"** — the employer's name matches an organisation on
   the official Home Office _Register of licensed sponsors: workers_.
-- 🟥 **"✗ Not on sponsor register"** — no matching organisation was found.
+- 🟥 **"✗ Not on sponsor"** — no matching organisation was found.
 
 ## How it works
 

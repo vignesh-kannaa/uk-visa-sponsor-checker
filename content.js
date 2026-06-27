@@ -8,7 +8,7 @@
  * LinkedIn currently renders job cards with at least THREE different
  * DOM structures depending on the page:
  *   A) Search results page      -> [componentkey^="job-card-component-ref"]
- *   B) Collections/recommended  -> .job-card-list__entity-lockup (Ember, older)
+ *   B) Collections/recommended  -> .artdeco-entity-lockup__subtitle (Ember, older)
  *   C) "More jobs for you" rail -> no componentkey, no entity-lockup class,
  *                                  just nested <p> siblings with a "•" separator
  *   D) Job detail pane          -> a[href*="/company/"]
@@ -84,7 +84,7 @@
       span.title = "Found on the Home Office register of licensed sponsors.";
     } else if (status === false) {
       span.classList.add("uvsc-badge--not-sponsor");
-      span.textContent = "✗ Not on sponsor register";
+      span.textContent = "✗ Not on sponsor";
       span.title =
         "Not found on the Home Office register. Verify directly with the employer.";
     } else {
@@ -152,13 +152,15 @@
   }
 
   // ── Layout B: Collections/recommended (Ember, older) ──────────────
-  // .job-card-list__entity-lockup  ->  .artdeco-entity-lockup__subtitle span
+  // Card root class is sometimes .job-card-list__entity-lockup, but on
+  // some page variants (e.g. ?currentJobId=...) that wrapper class is
+  // absent even though .artdeco-entity-lockup__subtitle is still present.
+  // So we scan for the subtitle directly and use IT (not an ancestor) as
+  // the unit of work — simpler and more resilient to wrapper changes.
 
-  function extractCompanyLayoutB(card) {
-    const subtitle = card.querySelector(".artdeco-entity-lockup__subtitle");
-    if (!subtitle) return null;
-    const span = subtitle.querySelector("span");
-    const el = span || subtitle;
+  function extractCompanyLayoutB(subtitleEl) {
+    const span = subtitleEl.querySelector("span");
+    const el = span || subtitleEl;
     const text = (el.textContent || "").trim();
     if (!isLikelyCompanyText(text)) return null;
     return { el, name: text };
@@ -325,9 +327,11 @@
       .querySelectorAll("[componentkey^='job-card-component-ref']")
       .forEach(processLayoutA);
 
-    // Layout B: collections/recommended (Ember)
+    // Layout B: collections/recommended (Ember) — scan for the subtitle
+    // class directly since the outer wrapper class is unreliable across
+    // page variants.
     document
-      .querySelectorAll(".job-card-list__entity-lockup")
+      .querySelectorAll(".artdeco-entity-lockup__subtitle")
       .forEach(processLayoutB);
 
     // Layout C: "More jobs for you" rail
@@ -351,4 +355,52 @@
   const observer = new MutationObserver(scheduleScan);
   observer.observe(document.body, { childList: true, subtree: true });
   scheduleScan();
+
+  // ── SPA navigation detection ───────────────────────────────────────
+  // LinkedIn is a single-page app: clicking a job card changes the URL
+  // (e.g. ?currentJobId=...) and swaps the detail pane WITHOUT a full
+  // page reload. The MutationObserver above doesn't reliably catch every
+  // one of these swaps (some updates batch/diff in ways that don't fire
+  // the childList mutations we're watching for), so we also explicitly
+  // watch the URL and force a fresh scan whenever it changes.
+  //
+  // A fresh scan after navigation needs to re-process the detail pane
+  // even though Layout D links may still have stale DONE_ATTR markers
+  // pointing at now-detached or reused nodes, so we clear those markers
+  // scoped to the detail pane area before rescanning.
+
+  let lastUrl = location.href;
+
+  function handlePossibleNavigation() {
+    if (location.href === lastUrl) return;
+    lastUrl = location.href;
+
+    // Give LinkedIn's router a moment to render the new detail pane,
+    // then scan a few times to catch slow-rendering content.
+    [100, 350, 700, 1200].forEach((delay) => {
+      setTimeout(scanPage, delay);
+    });
+  }
+
+  // Patch pushState/replaceState since LinkedIn uses the History API for
+  // in-app navigation (these don't fire popstate on their own).
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+
+  history.pushState = function (...args) {
+    originalPushState.apply(this, args);
+    handlePossibleNavigation();
+  };
+
+  history.replaceState = function (...args) {
+    originalReplaceState.apply(this, args);
+    handlePossibleNavigation();
+  };
+
+  window.addEventListener("popstate", handlePossibleNavigation);
+
+  // Fallback: some LinkedIn navigations don't go through pushState/
+  // replaceState in a way we can hook cleanly, so also poll briefly as
+  // a safety net (cheap: simple string comparison, runs every 500ms).
+  setInterval(handlePossibleNavigation, 500);
 })();

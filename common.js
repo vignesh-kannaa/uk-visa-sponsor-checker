@@ -11,16 +11,48 @@
 // Suffixes / corporate designators that are commonly present in the
 // official register but missing (or abbreviated) on LinkedIn, and vice versa.
 const SPONSOR_SUFFIXES = [
-  "limited", "ltd", "ltd.", "llp", "llp.", "plc", "plc.",
-  "inc", "inc.", "incorporated", "corporation", "corp", "corp.",
-  "company", "co", "co.", "group", "holdings", "holding",
-  "the", "uk", "u.k.", "(uk)", "international", "global",
-  "trust", "nhs trust", "foundation trust"
+  "limited",
+  "ltd",
+  "ltd.",
+  "llp",
+  "llp.",
+  "plc",
+  "plc.",
+  "inc",
+  "inc.",
+  "incorporated",
+  "corporation",
+  "corp",
+  "corp.",
+  "llc",
+  "llc.",
+  "l.l.c.",
+  "lp",
+  "l.p.",
+  "company",
+  "co",
+  "co.",
+  "group",
+  "holdings",
+  "holding",
+  "the",
+  "uk",
+  "u.k.",
+  "(uk)",
+  "international",
+  "global",
+  "trust",
+  "nhs trust",
+  "foundation trust",
 ];
 
 // Build a regex that strips one or more trailing suffix words.
 const SUFFIX_REGEX = new RegExp(
-  "\\b(" + SPONSOR_SUFFIXES.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b",
+  "\\b(" +
+    SPONSOR_SUFFIXES.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(
+      "|"
+    ) +
+    ")\\b",
   "gi"
 );
 

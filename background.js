@@ -15,18 +15,21 @@ const REGISTER_PAGE_URL =
 const STORAGE_KEYS = {
   EXACT_SET: "sponsorExactNames", // array of normalized names (exact lookups)
   BUCKETS: "sponsorBuckets", // { firstWord: [normalizedName, ...] }
+  DISPLAY_NAMES: "sponsorDisplayNames", // array of original (non-normalized) names, for search UI
   LAST_UPDATED: "sponsorLastUpdated",
   SPONSOR_COUNT: "sponsorCount",
   SOURCE_CSV: "sponsorSourceCsvUrl",
   STATUS: "sponsorRefreshStatus", // "idle" | "refreshing" | "error"
-  ERROR: "sponsorRefreshError"
+  ERROR: "sponsorRefreshError",
 };
 
 const ALARM_NAME = "refreshSponsorRegister";
 const REFRESH_INTERVAL_MINUTES = 60 * 24; // once a day
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.alarms.create(ALARM_NAME, { periodInMinutes: REFRESH_INTERVAL_MINUTES });
+  chrome.alarms.create(ALARM_NAME, {
+    periodInMinutes: REFRESH_INTERVAL_MINUTES,
+  });
   refreshSponsorRegister();
 });
 
@@ -52,7 +55,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         STORAGE_KEYS.SPONSOR_COUNT,
         STORAGE_KEYS.STATUS,
         STORAGE_KEYS.ERROR,
-        STORAGE_KEYS.SOURCE_CSV
+        STORAGE_KEYS.SOURCE_CSV,
       ],
       (data) => sendResponse(data)
     );
@@ -69,16 +72,18 @@ async function refreshSponsorRegister() {
   try {
     const csvUrl = await findCurrentCsvUrl();
     const csvText = await fetchText(csvUrl);
-    const { exactNames, buckets, count } = buildLookupStructures(csvText);
+    const { exactNames, buckets, displayNames, count } =
+      buildLookupStructures(csvText);
 
     await chrome.storage.local.set({
       [STORAGE_KEYS.EXACT_SET]: exactNames,
       [STORAGE_KEYS.BUCKETS]: buckets,
+      [STORAGE_KEYS.DISPLAY_NAMES]: displayNames,
       [STORAGE_KEYS.SPONSOR_COUNT]: count,
       [STORAGE_KEYS.LAST_UPDATED]: Date.now(),
       [STORAGE_KEYS.SOURCE_CSV]: csvUrl,
       [STORAGE_KEYS.STATUS]: "idle",
-      [STORAGE_KEYS.ERROR]: null
+      [STORAGE_KEYS.ERROR]: null,
     });
 
     return { ok: true, count };
@@ -86,7 +91,7 @@ async function refreshSponsorRegister() {
     console.error("[UK Visa Sponsor Checker] refresh failed:", err);
     await chrome.storage.local.set({
       [STORAGE_KEYS.STATUS]: "error",
-      [STORAGE_KEYS.ERROR]: String(err && err.message ? err.message : err)
+      [STORAGE_KEYS.ERROR]: String(err && err.message ? err.message : err),
     });
     return { ok: false, error: String(err) };
   }
@@ -100,7 +105,7 @@ async function refreshSponsorRegister() {
 async function findCurrentCsvUrl() {
   const html = await fetchText(REGISTER_PAGE_URL);
   const match = html.match(
-    /https:\/\/assets\.publishing\.service\.gov\.uk\/media\/[a-zA-Z0-9]+\/[0-9-]+_-_Worker_and_Temporary_Worker\.csv/
+    /https:\/\/assets\.publishing\.service\.gov\.uk\/media\/[a-zA-Z0-9]+\/[a-zA-Z0-9_-]+_Worker_and_Temporary_Worker.*\.csv/
   );
   if (!match) {
     throw new Error("Could not locate the sponsor register CSV link on gov.uk");
@@ -134,12 +139,16 @@ function buildLookupStructures(csvText) {
 
   const exactSet = new Set();
   const buckets = {};
+  const displayNameSet = new Set(); // original, human-readable names (for search UI)
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length <= nameIdx) continue;
     const raw = row[nameIdx];
     if (!raw) continue;
+
+    const trimmedRaw = raw.trim();
+    if (trimmedRaw) displayNameSet.add(trimmedRaw);
 
     const normalized = normalizeName(raw);
     if (!normalized) continue;
@@ -152,10 +161,15 @@ function buildLookupStructures(csvText) {
     }
   }
 
+  const displayNames = Array.from(displayNameSet).sort((a, b) =>
+    a.localeCompare(b)
+  );
+
   return {
     exactNames: Array.from(exactSet),
     buckets,
-    count: exactSet.size
+    displayNames,
+    count: exactSet.size,
   };
 }
 
